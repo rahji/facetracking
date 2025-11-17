@@ -18,12 +18,13 @@ server in TouchDesigner.
 
 ### In a Browser
 
-1. Download the included three files and put them in a folder on your computer, then open `index.html` in your browser
-2. Type the address and port of the server (e.g. `localhost:12000`) in text field and click Connect
+1. Download the `index.html` file and put it in a folder on your computer
+2. Open the file in Chrome (using Ctrl+O)
+3. Type the address and port of the server (e.g. `localhost:12000`) in text field and click Connect
 
 If the connection from your browser to TouchDesigner via a WebSocket was successful then the browser should be blank.
 
-If you want more information, you can open the browser's Console Log (F12 in my browser).
+Open the browser's Console Log (F12 in my browser) for more information, like whether the connection was successful.
 
 You should already be seeing channels of data about facial features appearing in TouchDesigner.
 

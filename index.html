@@ -3,14 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <title>FaceTracking</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.6.1/p5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.6.1/addons/p5.dom.min.js"></script>
     <script src="https://www.auduno.com/clmtrackr/build/clmtrackr.min.js"></script>
-    <link rel="stylesheet" type="text/css" href="style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        #videoContainer {
+            margin-top: 20px;
+        }
+        video {
+            border: 2px solid #333;
+            border-radius: 8px;
+        }
+        input, button {
+            padding: 8px 12px;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
 </head>
 
 <body>
-    <script src="sketch.js"></script>
+    <div>
+        <input type="text" id="hostInput" placeholder="hostname:port">
+        <button id="connectBtn">Connect</button>
+    </div>
+    
+    <div id="videoContainer">
+        <video id="video" width="640" height="480" autoplay playsinline></video>
+    </div>
+
+    <script>
+        let socket;
+        let connected = false;
+        let tracker;
+        let video;
+        const w = 640;
+        const h = 480;
+
+        function connectWebSocketAndStartTracking(hostPort) {
+            console.log("Trying to connect to ws://" + hostPort);
+            socket = new WebSocket('ws://' + hostPort);
+            socket.onopen = openHandler;
+            socket.onerror = errorHandler;
+            socket.onclose = closeHandler;
+            setupTracking();
+        }
+
+        document.getElementById("connectBtn").addEventListener("click", function () {
+            const hostPort = document.getElementById("hostInput").value.trim();
+            if (!hostPort) {
+                alert("Please enter a hostname and port.");
+                return;
+            }
+            connectWebSocketAndStartTracking(hostPort);
+        });
+
+        function openHandler() {
+            console.log("Connected via WebSocket");
+            connected = true;
+            document.getElementById("hostInput").hidden = true;
+            document.getElementById("connectBtn").hidden = true;
+        }
+
+        function errorHandler(event) {
+            connected = false;
+            console.error("WebSocket error:", event);
+        }
+
+        function closeHandler() {
+            console.log("Connection closed");
+            connected = false;
+        }
+
+        function updateTracking() {
+            if (connected == false) return;
+
+            let positions = tracker.getCurrentPosition();
+            if (positions && positions.length > 0) {
+                var obj = {
+                    noseX: positions[62][0],
+                    noseY: positions[62][1],
+                    mouthX: (positions[44][0] + positions[50][0]) / 2,
+                    mouthY: (positions[47][1] + positions[53][1]) / 2,
+                    mouthW: (positions[50][0] - positions[44][0]),
+                    mouthH: (positions[53][1] - positions[47][1]),
+                    eyeLX: positions[27][0],
+                    eyeLY: positions[27][1],
+                    eyeRX: positions[32][0],
+                    eyeRY: positions[32][1],
+                    distance: positions[32][0] - positions[27][0]
+                };
+                socket.send(JSON.stringify(obj));
+            }
+            requestAnimationFrame(updateTracking);
+        }
+
+        function setupTracking() {
+            video = document.getElementById('video');
+            
+            // Use getUserMedia to access the webcam
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: {
+                        width: w,
+                        height: h
+                    }
+                })
+                .then(function(stream) {
+                    console.log('Video ready.');
+                    video.srcObject = stream;
+                    video.style.display = 'none';
+                    
+                    // Wait for video to be ready before starting tracker
+                    video.addEventListener('loadedmetadata', function() {
+                        tracker = new clm.tracker();
+                        tracker.init();
+                        tracker.start(video);
+                        
+                        // Start tracking loop
+                        requestAnimationFrame(updateTracking);
+                    });
+                })
+                .catch(function(err) {
+                    console.error('Error accessing webcam:', err);
+                    alert('Could not access webcam. Please ensure you have granted camera permissions.');
+                });
+            } else {
+                alert('getUserMedia is not supported in your browser.');
+            }
+        }
+    </script>
 </body>
 
 </html>
