@@ -9,18 +9,23 @@
             font-family: Arial, sans-serif;
             padding: 20px;
         }
+
         #videoContainer {
             margin-top: 20px;
         }
+
         video {
             border: 2px solid #333;
             border-radius: 8px;
         }
-        input, button {
+
+        input,
+        button {
             padding: 8px 12px;
             margin: 5px;
             font-size: 14px;
         }
+
         button {
             background-color: #4CAF50;
             color: white;
@@ -28,6 +33,7 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
         button:hover {
             background-color: #45a049;
         }
@@ -35,13 +41,24 @@
 </head>
 
 <body>
-    <div>
-        <input type="text" id="hostInput" placeholder="hostname:port">
-        <button id="connectBtn">Connect</button>
-    </div>
+    <h1>Face Tracking to WebSockets</h1>
     
+    <div>
+        <label for="landmarksInput">List of Numbered Landmarks to Send</label>
+        <input type="text" id="landmarksInput" value="27,32,62,51-55">
+    </div>
+
+    <div>
+        <label for="hostInput">Server Address</label>
+        <input type="text" id="hostInput" value="localhost:12000"> <button id="connectBtn">Connect to Server</button>
+    </div>
+
     <div id="videoContainer">
-        <video id="video" width="640" height="480" autoplay playsinline></video>
+        <video id="video" width="400" height="300" autoplay playsinline></video>
+    </div>
+
+    <div>
+        <button id="togglePreviewBtn">Toggle Preview</button>
     </div>
 
     <script>
@@ -49,8 +66,9 @@
         let connected = false;
         let tracker;
         let video;
-        const w = 640;
-        const h = 480;
+
+        const w = 400; // the WIDTH  of the video
+        const h = 300; // the HEIGHT of the video
 
         function connectWebSocketAndStartTracking(hostPort) {
             console.log("Trying to connect to ws://" + hostPort);
@@ -70,21 +88,58 @@
             connectWebSocketAndStartTracking(hostPort);
         });
 
+        document.getElementById("togglePreviewBtn").addEventListener("click", function () {
+            let video = document.getElementById('video')
+            if (video.style.display == 'none') {
+                video.style.display = 'block'
+            } else {
+                video.style.display = 'none'
+            }
+        });
+
+
         function openHandler() {
-            console.log("Connected via WebSocket");
+            document.getElementById("hostInput").disabled = true;
+            document.getElementById("connectBtn").innerHTML = 'Connected';
+            document.getElementById("connectBtn").disabled = true;
             connected = true;
-            document.getElementById("hostInput").hidden = true;
-            document.getElementById("connectBtn").hidden = true;
+            console.log("Connected via WebSocket");
         }
 
         function errorHandler(event) {
-            connected = false;
-            console.error("WebSocket error:", event);
+            setTimeout(() => {
+                document.getElementById("hostInput").style.display = "none"
+                document.getElementById("connectBtn").innerHTML = 'WS Error! Refresh and try again';
+                document.getElementById("connectBtn").style.backgroundColor = "red";
+                document.getElementById("connectBtn").disabled = true;
+                connected = false;
+                console.error("WebSocket error:", event);
+            }, 0);
+
         }
 
         function closeHandler() {
-            console.log("Connection closed");
+            document.getElementById("hostInput").disabled = false;
+            document.getElementById("connectBtn").innerHTML = 'Connect';
             connected = false;
+            console.log("Connection closed");
+        }
+
+        function expandIndexString(str) {
+            const parts = str.split(",");
+            const result = [];
+
+            for (let part of parts) {
+                if (part.includes("-")) {
+                    const [start, end] = part.split("-").map(Number);
+                    for (let i = start; i <= end; i++) {
+                        result.push(i);
+                    }
+                } else {
+                    result.push(Number(part));
+                }
+            }
+            return result;
         }
 
         function updateTracking() {
@@ -92,19 +147,21 @@
 
             let positions = tracker.getCurrentPosition();
             if (positions && positions.length > 0) {
-                var obj = {
-                    noseX: positions[62][0],
-                    noseY: positions[62][1],
-                    mouthX: (positions[44][0] + positions[50][0]) / 2,
-                    mouthY: (positions[47][1] + positions[53][1]) / 2,
-                    mouthW: (positions[50][0] - positions[44][0]),
-                    mouthH: (positions[53][1] - positions[47][1]),
-                    eyeLX: positions[27][0],
-                    eyeLY: positions[27][1],
-                    eyeRX: positions[32][0],
-                    eyeRY: positions[32][1],
-                    distance: positions[32][0] - positions[27][0]
-                };
+                const landmarksList = document.getElementById("landmarksInput").value.trim()
+                const landmarkIndexes = expandIndexString(landmarksList)
+                const obj = {}
+                for (let i of landmarkIndexes) {
+                    obj[`${i}_x`] = positions[i][0];
+                    obj[`${i}_y`] = positions[i][1];
+                }
+                // now map all of the values to a range -.5 to .5 (based on the width or height)
+                for (let key in obj) {
+                    if (key.endsWith("_x")) {
+                        obj[key] = -0.5 + obj[key] / w;
+                    } else if (key.endsWith("_y")) {
+                        obj[key] = -0.5 + obj[key] / h;
+                    }
+                }
                 socket.send(JSON.stringify(obj));
             }
             requestAnimationFrame(updateTracking);
@@ -112,7 +169,7 @@
 
         function setupTracking() {
             video = document.getElementById('video');
-            
+
             // Use getUserMedia to access the webcam
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 navigator.mediaDevices.getUserMedia({
@@ -122,25 +179,25 @@
                         height: h
                     }
                 })
-                .then(function(stream) {
-                    console.log('Video ready.');
-                    video.srcObject = stream;
-                    video.style.display = 'none';
-                    
-                    // Wait for video to be ready before starting tracker
-                    video.addEventListener('loadedmetadata', function() {
-                        tracker = new clm.tracker();
-                        tracker.init();
-                        tracker.start(video);
-                        
-                        // Start tracking loop
-                        requestAnimationFrame(updateTracking);
+                    .then(function (stream) {
+                        console.log('Video ready.');
+                        video.srcObject = stream;
+                        video.style.display = 'none';
+
+                        // Wait for video to be ready before starting tracker
+                        video.addEventListener('loadedmetadata', function () {
+                            tracker = new clm.tracker();
+                            tracker.init();
+                            tracker.start(video);
+
+                            // Start tracking loop
+                            requestAnimationFrame(updateTracking);
+                        });
+                    })
+                    .catch(function (err) {
+                        console.error('Error accessing webcam:', err);
+                        alert('Could not access webcam. Please ensure you have granted camera permissions.');
                     });
-                })
-                .catch(function(err) {
-                    console.error('Error accessing webcam:', err);
-                    alert('Could not access webcam. Please ensure you have granted camera permissions.');
-                });
             } else {
                 alert('getUserMedia is not supported in your browser.');
             }
