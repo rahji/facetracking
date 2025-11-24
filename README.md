@@ -5,13 +5,15 @@ way to make it happen. This method uses the [clmtrackr](https://github.com/audun
 the face tracking in your web browser, using your webcam. It then sends that data as JSON via a WebSocket to a waiting
 server in TouchDesigner. 
 
+Read below or watch this short YouTube video for the details: https://www.youtube.com/watch?v=HtmxhGLojcQ
+
 ## The Gist
 
 ### In TouchDesigner
 
 1. Create a network with a **Web Server DAT**
 2. Set that operator's "Port" parameter to a port number (like `12000`) and turn the "Active" parameter on
-3. Edit the `onWebSocketReceiveText` function in the attached callbacks window to contain the line `op('text').text = data`
+3. Edit the `onWebSocketReceiveText` function in the attached callbacks window to contain the line `op('text1').text = data`
 4. Create a **Text DAT** (named `text1`) and change its "Content Language" parameter to `JSON`
 5. Connect the output of the Text DAT to a **JSON DAT** and change its "Output Format" parameter to `Table`
 6. Connect the output of the JSON DAT to a **DAT to CHOP**
